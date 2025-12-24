@@ -1,0 +1,92 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: termoflow
+      POSTGRES_PASSWORD: termoflow
+      POSTGRES_DB: termoflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongo:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: mongo
+      MONGO_INITDB_ROOT_PASSWORD: mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    ulimits:
+      nofile:
+        soft: 64000
+        hard: 64000
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh \"mongodb://$$MONGO_INITDB_ROOT_USERNAME:$$MONGO_INITDB_ROOT_PASSWORD@localhost:27017/admin\" --quiet --eval \"db.adminCommand({ ping: 1 })\""
+        ]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    environment:
+      PORT: 3000
+      LOG_LEVEL: info
+      NODE_ENV: production
+      DATABASE_URL: postgresql://termoflow:termoflow@postgres:5432/termoflow?schema=public
+      MONGO_DATABASE_URL: mongodb://mongo:mongo@mongo:27017/termoflow?authSource=admin
+    ports:
+      - "3001:3000"
+    depends_on:
+      - postgres
+      - mongo
+    restart: unless-stopped
+
+  middleware:
+    build:
+      context: ./apps/middleware
+      dockerfile: Dockerfile
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      DATABASE_URL: postgresql://termoflow:termoflow@postgres:5432/termoflow?schema=public
+      UPSTREAM_BASE_URL: http://backend:3000
+      UPSTREAM_ALLOWED_PATH_PREFIXES: /items,/organizations
+      UPSTREAM_HEALTH_PATH: /health
+    ports:
+      - "4000:4000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        REACT_APP_GRAPHQL_URL: ${REACT_APP_GRAPHQL_URL:-/api/graphql}
+        REACT_APP_TENANT_ID: ${REACT_APP_TENANT_ID:-11111111-1111-1111-1111-111111111111}
+        REACT_APP_USER_ID: ${REACT_APP_USER_ID:-22222222-2222-2222-2222-222222222222}
+    ports:
+      - "3000:80"
+    depends_on:
+      - middleware
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  mongo_data:

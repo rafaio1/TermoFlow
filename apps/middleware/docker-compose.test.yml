@@ -1,0 +1,7 @@
+services:
+  test:
+    build:
+      context: .
+      target: test
+    environment:
+      NODE_ENV: test

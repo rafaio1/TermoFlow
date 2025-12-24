@@ -1,0 +1,21 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`schema (visual) > matches snapshot 1`] = `
+""""
+The \`JSON\` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
+"""
+scalar JSON
+
+type Health {
+  ok: Boolean!
+  service: String!
+  version: String!
+  time: String!
+}
+
+type Query {
+  health: Health!
+  echo(message: String!): String!
+  upstreamGet(path: String!, redactSensitive: Boolean = true, includeKeys: [String!], excludeKeys: [String!]): JSON
+}"
+`;

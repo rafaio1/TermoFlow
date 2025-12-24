@@ -1,0 +1,828 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CompanyStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  BLOCKED
+}
+
+enum RoleScope {
+  TENANT
+  ORGANIZATION
+  COMPANY
+}
+
+enum UserCompanyMembershipStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum DocumentType {
+  CPF
+  CNPJ
+  OUTRO
+}
+
+enum ExternalPartyStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CoaAccountStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CoaChartScope {
+  TENANT
+  ORGANIZATION
+  COMPANY
+}
+
+enum CoaAccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum CodeTemplateTarget {
+  ORGANIZATION_CODE
+  COMPANY_CODE
+  COA_ACCOUNT_CODE
+  CUSTOMER_CODE
+  SUPPLIER_CODE
+}
+
+enum FinanceTitleType {
+  PAYABLE
+  RECEIVABLE
+}
+
+enum FinanceTitleStatus {
+  DRAFT
+  OPEN
+  PARTIALLY_PAID
+  PAID
+  CANCELED
+  OVERDUE
+}
+
+enum FinanceCreatedFrom {
+  MANUAL
+  IMPORT
+  CONTRACT
+  WHATSAPP
+}
+
+enum FinanceSettlementMethod {
+  PIX
+  BOLETO
+  TED
+  CASH
+  CARD
+}
+
+model Tenant {
+  id            String       @id @default(uuid()) @db.Uuid
+  name          String
+  status        TenantStatus @default(ACTIVE)
+  primaryDomain String?      @map("primary_domain")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  settings TenantSettings?
+
+  organizations Organization[]
+  groups        Group[]
+  companies     Company[]
+  users         User[]
+  roles         Role[]
+  userCompanyMemberships UserCompanyMembership[]
+  userRoleAssignments    UserRoleAssignment[]
+  jobFunctions           JobFunction[]
+  employees              Employee[]
+  customers              Customer[]
+  suppliers              Supplier[]
+  customerCompanyAccess  CustomerCompanyAccess[]
+  supplierCompanyAccess  SupplierCompanyAccess[]
+  coaCharts              CoaChart[]
+  coaAccounts            CoaAccount[]
+  codeTemplates          CodeTemplate[]
+  codeSequences          CodeSequence[]
+  financeTitles          FinanceTitle[]
+  financeSettlements     FinanceSettlement[]
+  auditEvents   AuditEvent[]
+  items         Item[] // Adicionado para resolver o erro de validação do Prisma
+
+  @@map("tenants")
+}
+
+model TenantSettings {
+  tenantId         String  @id @db.Uuid @map("tenant_id")
+  useOrganizations Boolean @default(false) @map("use_organizations")
+  useGroups        Boolean @default(false) @map("use_groups")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_settings")
+}
+
+model Organization {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+
+  code   String?            @db.VarChar(100)
+  name   String
+  status OrganizationStatus @default(ACTIVE)
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  groups    Group[]
+  companies Company[]
+  userRoleAssignments UserRoleAssignment[]
+  coaCharts           CoaChart[]
+  codeSequences       CodeSequence[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@unique([id, tenantId])
+  @@map("organizations")
+}
+
+model Group {
+  id             String  @id @default(uuid()) @db.Uuid
+  tenantId       String  @db.Uuid @map("tenant_id")
+  organizationId String? @db.Uuid @map("organization_id")
+
+  code String? @db.VarChar(100)
+  name String
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  organization Organization? @relation(fields: [organizationId, tenantId], references: [id, tenantId])
+
+  companyGroups CompanyGroup[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([tenantId, organizationId])
+  @@unique([id, tenantId])
+  @@map("groups")
+}
+
+model Company {
+  id             String  @id @default(uuid()) @db.Uuid
+  tenantId       String  @db.Uuid @map("tenant_id")
+  organizationId String? @db.Uuid @map("organization_id")
+
+  code      String?       @db.VarChar(100)
+  legalName String?       @map("legal_name")
+  tradeName String        @map("trade_name")
+  taxId     String?       @map("tax_id")
+  status    CompanyStatus @default(ACTIVE)
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  organization Organization? @relation(fields: [organizationId, tenantId], references: [id, tenantId])
+
+  groups CompanyGroup[]
+  userMemberships UserCompanyMembership[]
+  roleAssignments UserRoleAssignment[]
+  employees       Employee[]
+  customerAccesses CustomerCompanyAccess[]
+  supplierAccesses SupplierCompanyAccess[]
+  coaCharts        CoaChart[]
+  codeSequences    CodeSequence[]
+  financeTitles    FinanceTitle[]
+  financeSettlements FinanceSettlement[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, taxId])
+  @@index([tenantId])
+  @@index([tenantId, organizationId])
+  @@unique([id, tenantId])
+  @@map("companies")
+}
+
+model CompanyGroup {
+  tenantId  String @db.Uuid @map("tenant_id")
+  companyId String @db.Uuid @map("company_id")
+  groupId   String @db.Uuid @map("group_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  company Company @relation(fields: [companyId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  group   Group   @relation(fields: [groupId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([companyId, groupId])
+  @@index([tenantId, companyId])
+  @@index([tenantId, groupId])
+  @@map("company_groups")
+}
+
+model AuditEvent {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+
+  actorUserId String @db.Uuid @map("actor_user_id")
+  action      AuditAction
+
+  entityType String @map("entity_type")
+  entityId   String @db.Uuid @map("entity_id")
+  changes    Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, actorUserId, createdAt(sort: Desc)])
+  @@map("audit_events")
+}
+
+model User {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+
+  email        String     @db.Citext
+  name         String
+  status       UserStatus @default(INVITED)
+  passwordHash String?    @map("password_hash")
+  authProvider String?    @map("auth_provider")
+  lastLoginAt  DateTime?  @map("last_login_at")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  companyMemberships UserCompanyMembership[]
+  roleAssignments    UserRoleAssignment[]
+  employees          Employee[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@unique([id, tenantId])
+  @@map("users")
+}
+
+model Role {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+
+  name     String
+  scope    RoleScope
+  isSystem Boolean @default(false) @map("is_system")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  rolePermissions RolePermission[]
+  userAssignments  UserRoleAssignment[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@unique([id, tenantId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String @id @default(uuid()) @db.Uuid
+  key         String @unique
+  description String
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  tenantId     String @db.Uuid @map("tenant_id")
+  roleId       String @db.Uuid @map("role_id")
+  permissionId String @db.Uuid @map("permission_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  role       Role       @relation(fields: [roleId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+
+  @@id([roleId, permissionId])
+  @@index([tenantId, roleId])
+  @@index([tenantId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserCompanyMembership {
+  tenantId  String @db.Uuid @map("tenant_id")
+  userId    String @db.Uuid @map("user_id")
+  companyId String @db.Uuid @map("company_id")
+
+  status    UserCompanyMembershipStatus @default(ACTIVE)
+  isDefault Boolean                    @default(false) @map("is_default")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  company Company @relation(fields: [companyId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([userId, companyId])
+  @@index([tenantId, userId])
+  @@index([tenantId, companyId])
+  @@index([tenantId, userId, isDefault])
+  @@map("user_company_memberships")
+}
+
+model UserRoleAssignment {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+  userId   String @db.Uuid @map("user_id")
+  roleId   String @db.Uuid @map("role_id")
+
+  scopeCompanyId      String? @db.Uuid @map("scope_company_id")
+  scopeOrganizationId String? @db.Uuid @map("scope_organization_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  scopeCompany      Company?      @relation(fields: [scopeCompanyId, tenantId], references: [id, tenantId])
+  scopeOrganization Organization? @relation(fields: [scopeOrganizationId, tenantId], references: [id, tenantId])
+
+  @@index([tenantId, userId])
+  @@index([tenantId, roleId])
+  @@index([tenantId, scopeCompanyId])
+  @@index([tenantId, scopeOrganizationId])
+  @@map("user_role_assignments")
+}
+
+model JobFunction {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+
+  name String
+  code String? @db.VarChar(100)
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  employees Employee[]
+
+  @@unique([tenantId, name])
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@unique([id, tenantId])
+  @@map("job_functions")
+}
+
+model Employee {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+  companyId String @db.Uuid @map("company_id")
+
+  userId        String? @db.Uuid @map("user_id")
+  jobFunctionId String? @db.Uuid @map("job_function_id")
+
+  name     String
+  document String
+  email    String? @db.Citext
+  phone    String?
+  status   EmployeeStatus @default(ACTIVE)
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  user    User?   @relation(fields: [userId, tenantId], references: [id, tenantId])
+  jobFunction JobFunction? @relation(fields: [jobFunctionId, tenantId], references: [id, tenantId])
+
+  @@unique([tenantId, document])
+  @@index([tenantId, companyId])
+  @@index([tenantId, userId])
+  @@index([tenantId, status])
+  @@map("employees")
+}
+
+model Customer {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+
+  name           String
+  documentType   DocumentType @map("document_type")
+  documentNumber String       @map("document_number")
+  email          String?      @db.Citext
+  phone          String?
+  status         ExternalPartyStatus @default(ACTIVE)
+  isShared       Boolean             @default(false) @map("is_shared")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  companyAccesses CustomerCompanyAccess[]
+  financeTitles   FinanceTitle[]
+
+  @@unique([tenantId, documentType, documentNumber])
+  @@index([tenantId])
+  @@index([tenantId, isShared])
+  @@unique([id, tenantId])
+  @@map("customers")
+}
+
+model Supplier {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+
+  name           String
+  documentType   DocumentType @map("document_type")
+  documentNumber String       @map("document_number")
+  email          String?      @db.Citext
+  phone          String?
+  status         ExternalPartyStatus @default(ACTIVE)
+  isShared       Boolean             @default(false) @map("is_shared")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  companyAccesses SupplierCompanyAccess[]
+  financeTitles   FinanceTitle[]
+
+  @@unique([tenantId, documentType, documentNumber])
+  @@index([tenantId])
+  @@index([tenantId, isShared])
+  @@unique([id, tenantId])
+  @@map("suppliers")
+}
+
+model CustomerCompanyAccess {
+  tenantId   String @db.Uuid @map("tenant_id")
+  customerId String @db.Uuid @map("customer_id")
+  companyId  String @db.Uuid @map("company_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  company  Company  @relation(fields: [companyId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([customerId, companyId])
+  @@index([tenantId, customerId])
+  @@index([tenantId, companyId])
+  @@map("customer_company_access")
+}
+
+model SupplierCompanyAccess {
+  tenantId   String @db.Uuid @map("tenant_id")
+  supplierId String @db.Uuid @map("supplier_id")
+  companyId  String @db.Uuid @map("company_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  company  Company  @relation(fields: [companyId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([supplierId, companyId])
+  @@index([tenantId, supplierId])
+  @@index([tenantId, companyId])
+  @@map("supplier_company_access")
+}
+
+model CoaChart {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+
+  name           String
+  scope          CoaChartScope
+  organizationId String? @db.Uuid @map("organization_id")
+  companyId      String? @db.Uuid @map("company_id")
+  isDefault      Boolean @default(false) @map("is_default")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId, tenantId], references: [id, tenantId])
+  company      Company?      @relation(fields: [companyId, tenantId], references: [id, tenantId])
+
+  accounts CoaAccount[]
+
+  @@index([tenantId])
+  @@index([tenantId, scope])
+  @@index([tenantId, organizationId])
+  @@index([tenantId, companyId])
+  @@unique([id, tenantId])
+  @@map("coa_charts")
+}
+
+model CoaAccount {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+  chartId  String @db.Uuid @map("chart_id")
+  parentId String? @db.Uuid @map("parent_id")
+
+  code       String @db.VarChar(100)
+  name       String
+  type       CoaAccountType
+  isPostable Boolean @default(true) @map("is_postable")
+  status     CoaAccountStatus @default(ACTIVE)
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chart  CoaChart @relation(fields: [chartId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  parent   CoaAccount?  @relation("CoaAccountHierarchy", fields: [parentId, tenantId, chartId], references: [id, tenantId, chartId], onDelete: SetNull)
+  children CoaAccount[] @relation("CoaAccountHierarchy")
+
+  categorizedTitles FinanceTitle[]
+
+  @@unique([tenantId, chartId, code])
+  @@index([tenantId, chartId])
+  @@index([tenantId, chartId, parentId])
+  @@unique([id, tenantId])
+  @@unique([id, tenantId, chartId])
+  @@map("coa_accounts")
+}
+
+model CodeTemplate {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+
+  target        CodeTemplateTarget
+  name          String
+  pattern       String?
+  segments      Json?
+  exampleOutput String? @map("example_output")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  sequences CodeSequence[]
+
+  @@unique([tenantId, target, name])
+  @@index([tenantId, target])
+  @@unique([id, tenantId])
+  @@map("code_templates")
+}
+
+model CodeSequence {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+  templateId String @db.Uuid @map("template_id")
+
+  scopeCompanyId String? @db.Uuid @map("scope_company_id")
+  scopeOrgId     String? @db.Uuid @map("scope_org_id")
+
+  currentValue BigInt @default(0) @db.BigInt @map("current_value")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  template CodeTemplate @relation(fields: [templateId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  scopeCompany      Company?      @relation(fields: [scopeCompanyId, tenantId], references: [id, tenantId])
+  scopeOrganization Organization? @relation(fields: [scopeOrgId, tenantId], references: [id, tenantId])
+
+  @@index([tenantId, templateId])
+  @@index([tenantId, scopeCompanyId])
+  @@index([tenantId, scopeOrgId])
+  @@map("code_sequences")
+}
+
+model FinanceTitle {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+  companyId String @db.Uuid @map("company_id")
+
+  type   FinanceTitleType
+  status FinanceTitleStatus @default(DRAFT)
+
+  issueDate      DateTime  @db.Date @map("issue_date")
+  dueDate        DateTime  @db.Date @map("due_date")
+  competenceDate DateTime? @db.Date @map("competence_date")
+
+  amountOriginal Decimal @db.Decimal(19, 2) @map("amount_original")
+  amountOpen     Decimal @db.Decimal(19, 2) @map("amount_open")
+
+  currency String @default("BRL") @db.Char(3)
+
+  description      String?
+  documentNumber   String? @map("document_number")
+  installmentNumber String? @db.VarChar(20) @map("installment_number")
+
+  categoryCoaAccountId String? @db.Uuid @map("category_coa_account_id")
+  costCenterId         String? @db.Uuid @map("cost_center_id")
+
+  createdFrom FinanceCreatedFrom @map("created_from")
+
+  customerId String? @db.Uuid @map("customer_id")
+  supplierId String? @db.Uuid @map("supplier_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  categoryCoaAccount CoaAccount? @relation(fields: [categoryCoaAccountId, tenantId], references: [id, tenantId])
+
+  customer Customer? @relation(fields: [customerId, tenantId], references: [id, tenantId])
+  supplier Supplier? @relation(fields: [supplierId, tenantId], references: [id, tenantId])
+
+  settlements FinanceSettlement[]
+
+  @@index([tenantId, companyId])
+  @@index([tenantId, companyId, type, status])
+  @@index([tenantId, companyId, dueDate])
+  @@unique([id, tenantId])
+  @@unique([id, tenantId, companyId])
+  @@map("finance_titles")
+}
+
+model FinanceSettlement {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+  companyId String @db.Uuid @map("company_id")
+  titleId  String @db.Uuid @map("title_id")
+
+  paidAt  DateTime @map("paid_at")
+  amount  Decimal  @db.Decimal(19, 2)
+  method  FinanceSettlementMethod
+  reference String?
+
+  bankAccountId String? @db.Uuid @map("bank_account_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  deletedAt       DateTime? @map("deleted_at")
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company Company @relation(fields: [companyId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  title   FinanceTitle @relation(fields: [titleId, tenantId, companyId], references: [id, tenantId, companyId], onDelete: Cascade)
+
+  @@index([tenantId, companyId, paidAt(sort: Desc)])
+  @@index([tenantId, titleId])
+  @@unique([id, tenantId])
+  @@map("finance_settlements")
+}
+
+model Item {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid @map("tenant_id")
+
+  name String
+
+  createdByUserId String?   @db.Uuid @map("created_by_user_id")
+  updatedByUserId String?   @db.Uuid @map("updated_by_user_id")
+  deletedAt       DateTime? @map("deleted_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@unique([id, tenantId])
+  @@map("items")
+}

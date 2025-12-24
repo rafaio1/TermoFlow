@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  api:
+    build:
+      context: ./api
+      target: development
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./api:/app
+      - /app/node_modules
+      - api_data:/data
+    environment:
+      PORT: 4000
+      DATA_DIR: /data
+      JWT_SECRET: dev_secret
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      target: development
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      HOST: 0.0.0.0
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "1000"
+    depends_on:
+      - api
+    stdin_open: true
+    tty: true
+
+volumes:
+  api_data:

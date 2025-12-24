@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  api:
+    build:
+      context: ./api
+      target: production
+    environment:
+      PORT: 4000
+      DATA_DIR: /data
+      JWT_SECRET: ${JWT_SECRET:-dev_secret}
+    volumes:
+      - api_data:/data
+    ports:
+      - "4000:4000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      target: production
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  api_data:

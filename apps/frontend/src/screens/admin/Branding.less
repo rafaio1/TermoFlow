@@ -1,0 +1,37 @@
+@import 'settings';
+@import 'tools';
+
+@module: tf-branding;
+
+.@{module} {
+  &__card {
+    margin-top: 16px;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px 20px;
+  }
+
+  &__colorField {
+    width: 100%;
+  }
+
+  &__colorPicker {
+    width: 48px;
+    padding: 0;
+    border: none;
+    background: transparent;
+  }
+
+  &__colorText {
+    flex: 1;
+  }
+}
+
+@media @mobile {
+  .@{module}__grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,3 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`ListItem (visual) gera markup estável 1`] = `"<p class=\\"list-item\\">item1</p>"`;

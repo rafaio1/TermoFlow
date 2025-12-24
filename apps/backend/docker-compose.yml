@@ -1,0 +1,100 @@
+services:
+  api:
+    build: .
+    environment:
+      PORT: ${PORT:-3000}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://termoflow:termoflow@postgres:5432/termoflow?schema=public}
+      MONGO_DATABASE_URL: ${MONGO_DATABASE_URL:-mongodb://mongo:mongo@mongo:27017/termoflow?authSource=admin}
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    depends_on:
+      - postgres
+      - mongo
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-termoflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-termoflow}
+      POSTGRES_DB: ${POSTGRES_DB:-termoflow}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mongo:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-mongo}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-mongo}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test:
+        - CMD
+        - mongosh
+        - mongodb://$$MONGO_INITDB_ROOT_USERNAME:$$MONGO_INITDB_ROOT_PASSWORD@localhost:27017/admin
+        - --quiet
+        - --eval
+        - db.adminCommand('ping')
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+  migrate:
+    profiles: ["tools"]
+    build:
+      context: .
+      target: deps
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://termoflow:termoflow@postgres:5432/termoflow?schema=public}
+    depends_on:
+      - postgres
+    volumes:
+      - ./prisma:/app/prisma
+    command: ["npx", "prisma", "migrate", "deploy"]
+    restart: "no"
+
+  prisma:
+    profiles: ["tools"]
+    build:
+      context: .
+      target: deps
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://termoflow:termoflow@postgres:5432/termoflow?schema=public}
+    depends_on:
+      - postgres
+    volumes:
+      - ./prisma:/app/prisma
+    entrypoint: ["npx", "prisma"]
+    restart: "no"
+
+  test:
+    profiles: ["tools"]
+    build:
+      context: .
+      target: dev
+    environment:
+      NODE_ENV: test
+      LOG_LEVEL: silent
+      LOG_PRETTY: "false"
+      DATABASE_URL: ${DATABASE_URL:-postgresql://termoflow:termoflow@postgres:5432/termoflow?schema=public}
+      MONGO_DATABASE_URL: ${MONGO_DATABASE_URL:-mongodb://mongo:mongo@mongo:27017/termoflow?authSource=admin}
+    command: ["npm", "test"]
+    restart: "no"
+
+volumes:
+  postgres_data:
+  mongo_data:

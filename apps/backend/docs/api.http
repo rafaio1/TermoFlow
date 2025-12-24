@@ -1,0 +1,53 @@
+@baseUrl = http://localhost:3000
+@tenantId = 00000000-0000-0000-0000-000000000000
+@userId = 00000000-0000-0000-0000-000000000000
+@organizationId = 00000000-0000-0000-0000-000000000000
+
+### Status
+GET {{baseUrl}}/
+
+### Healthcheck (Postgres + Mongo)
+GET {{baseUrl}}/health
+
+### Listar organizations
+GET {{baseUrl}}/organizations
+x-tenant-id: {{tenantId}}
+
+### Criar organization
+POST {{baseUrl}}/organizations
+x-tenant-id: {{tenantId}}
+x-user-id: {{userId}}
+Content-Type: application/json
+
+{
+  "code": "12341",
+  "name": "Holding Principal",
+  "status": "ACTIVE"
+}
+
+### Editar organization
+PATCH {{baseUrl}}/organizations/{{organizationId}}
+x-tenant-id: {{tenantId}}
+x-user-id: {{userId}}
+Content-Type: application/json
+
+{
+  "name": "Holding Principal (Editada)",
+  "status": "INACTIVE"
+}
+
+### Remover organization (soft delete)
+DELETE {{baseUrl}}/organizations/{{organizationId}}
+x-tenant-id: {{tenantId}}
+x-user-id: {{userId}}
+
+### Criar item (Postgres + AuditLog em Mongo)
+POST {{baseUrl}}/items
+Content-Type: application/json
+
+{
+  "name": "Item de teste"
+}
+
+### Listar itens (Postgres)
+GET {{baseUrl}}/items
